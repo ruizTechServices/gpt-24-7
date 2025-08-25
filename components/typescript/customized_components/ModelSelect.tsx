@@ -13,15 +13,15 @@ export default function ModelSelect({
         className="border rounded px-2 py-1"
         onChange={(e) => {
           const v = e.target.value;
-          if (v === 'auto') onChange({ provider: 'openai', model: '' });
-          else if (v === 'openai') onChange({ provider: 'openai', model: 'gpt-4o-mini' });
-          else onChange({ provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' });
+          if (v === 'auto') onChange({ provider: 'gpt-4o-mini', model: '' });
+          else if (v === 'openai') onChange({ provider: 'gpt-4o-mini', model: 'gpt-4o-mini' });
+          else onChange({ provider: 'Claude Sonnet 3.5', model: 'claude-3-5-sonnet-20241022' });
         }}
         defaultValue="auto"
       >
         <option value="auto">Auto</option>
-        <option value="openai">OpenAI (gpt‑4o‑mini)</option>
-        <option value="anthropic">Anthropic (Claude Sonnet)</option>
+        <option value="openai">GPT-4o-mini</option>
+        <option value="anthropic">Claude Sonnet 3.5</option>
       </select>
     </div>
   );

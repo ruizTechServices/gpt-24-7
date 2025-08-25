@@ -1,7 +1,8 @@
+// app/dashboard/page.tsx
 import { requireUser } from '@/lib/auth';
-import BuyButton from '@/components/typescript/customized_components/BuyButton';
 import { getBaseUrl } from '@/lib/http';
 import { cookies } from 'next/headers';
+import DashboardClient from '@/app/dashboard/DashboardClient';
 
 async function fetchSession() {
   const base = await getBaseUrl();
@@ -14,30 +15,16 @@ async function fetchSession() {
     cache: 'no-store',
     headers: { cookie: cookieHeader },
   });
+  if (!res.ok) {
+    console.error('Failed to fetch session:', res.status, res.statusText);
+    return { active: false, ends_at: null };
+  }
   return res.json();
 }
 
 export default async function Dashboard() {
   const user = await requireUser();
-  const sess = await fetchSession();
+  const session = await fetchSession();
 
-  return (
-    <div className="grid gap-4">
-      <div className="rounded border bg-white p-4">
-        <div className="font-medium">Session</div>
-        {sess.active ? (
-          <div className="text-green-600">Active until {new Date(sess.endsAt).toLocaleString()}</div>
-        ) : (
-          <div className="text-red-600">No active pass.</div>
-        )}
-      </div>
-
-      {!sess.active && <BuyButton />}
-
-      <div className="rounded border bg-white p-4">
-        <div className="font-medium">Account</div>
-        <div className="text-sm text-neutral-700">{user.email}</div>
-      </div>
-    </div>
-  );
+  return <DashboardClient user={user} session={session} />;
 }
