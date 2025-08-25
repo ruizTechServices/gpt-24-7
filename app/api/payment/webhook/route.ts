@@ -1,7 +1,7 @@
 // app/api/payment/webhook/route.ts
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
-import { supabaseService } from '@/lib/db';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-async function grantOrExtend(db: ReturnType<typeof supabaseService>, userId: string) {
+async function grantOrExtend(userId: string) {
+  const db = await createSupabaseServerClient();
   const now = new Date();
   const { data: existing } = await db
     .from('sessions')
@@ -72,10 +73,8 @@ export async function POST(req: Request) {
         : session.payment_intent?.id;
     const checkoutSessionId = session.id;
 
-    const db = supabaseService();
-
     // Persist payment (avoid onConflict unless DB has unique constraints)
-    const { error: payErr1 } = await db
+    const { error: payErr1 } = await (await createSupabaseServerClient())
       .from('payments')
       .insert({
         user_id: userId,
@@ -91,7 +90,7 @@ export async function POST(req: Request) {
 
     // Grant or extend 24h access
     if (userId) {
-      await grantOrExtend(db, userId);
+      await grantOrExtend(userId);
     }
   } else if (event.type === 'payment_intent.succeeded') {
     const pi = event.data.object as Stripe.PaymentIntent;
@@ -99,7 +98,6 @@ export async function POST(req: Request) {
     const paymentIntentId = pi.id;
     const amountCents = typeof pi.amount_received === 'number' ? pi.amount_received : pi.amount ?? 0;
     const currency = (pi.currency ?? 'usd').toUpperCase();
-    const db = supabaseService();
 
     // Try to backfill checkout_session_id if PI came from Checkout
     let checkoutSessionId: string | null = null;
@@ -108,7 +106,7 @@ export async function POST(req: Request) {
       checkoutSessionId = list.data[0]?.id ?? null;
     } catch {}
 
-    const { error: payErr2 } = await db
+    const { error: payErr2 } = await (await createSupabaseServerClient())
       .from('payments')
       .insert({
         user_id: userId,
@@ -123,7 +121,7 @@ export async function POST(req: Request) {
       console.error('[webhook] payments.insert (payment_intent.succeeded) error', payErr2);
 
     if (userId) {
-      await grantOrExtend(db, userId);
+      await grantOrExtend(userId);
     }
   } else if (event.type === 'invoice.paid') {
     const invoice = event.data.object as Stripe.Invoice;
@@ -137,9 +135,8 @@ export async function POST(req: Request) {
     }
     const amountCents = invoice.amount_paid ?? invoice.amount_due ?? 0;
     const currency = (invoice.currency ?? 'usd').toUpperCase();
-    const db = supabaseService();
 
-    const { error: payErr3 } = await db
+    const { error: payErr3 } = await (await createSupabaseServerClient())
       .from('payments')
       .insert({
         user_id: userId,
@@ -154,7 +151,7 @@ export async function POST(req: Request) {
       console.error('[webhook] payments.insert (invoice.paid) error', payErr3);
 
     if (userId) {
-      await grantOrExtend(db, userId);
+      await grantOrExtend(userId);
     }
   }
 
