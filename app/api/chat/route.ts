@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   const body = Body.parse(JSON.parse(bodyText));
   const input = body.message;
 
-  let choice = chooseModel(input);
+  const choice = chooseModel(input);
   if (body.override?.provider) choice.provider = body.override.provider;
   if (body.override?.model) choice.model = body.override.model;
 

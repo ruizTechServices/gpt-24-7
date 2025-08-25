@@ -11,7 +11,7 @@ export async function askAnthropic(prompt: string, model = 'claude-3-5-sonnet-20
     messages: [{ role: 'user', content: prompt }],
   });
   const text =
-    (msg.content as any[])
+    msg.content
       ?.map((c) => ('text' in c ? c.text : ''))
       .join('') ?? '';
   const latency_ms = Date.now() - started;

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { supabaseService } from '@/lib/db';
+import { Tables } from '@/lib/supabase/database.types';
 
 export const runtime = 'nodejs';
 
@@ -26,8 +27,8 @@ export async function GET() {
 
   const revenue =
     (pay ?? [])
-      .filter((p: any) => p.status === 'succeeded')
-      .reduce((s: number, p: any) => s + (p.amount_cents || 0), 0) / 100;
+      .filter((p: Tables<'payments'>) => p.status === 'succeeded')
+      .reduce((s: number, p: Tables<'payments'>) => s + (p.amount_cents || 0), 0) / 100;
 
   return NextResponse.json({ revenue, last100: usage ?? [] });
 }

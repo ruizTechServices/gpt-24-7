@@ -2,6 +2,7 @@
 
 import { Navbar, NavbarItem, NavbarLabel, NavbarSection, NavbarSpacer } from '@/components/typescript/navbar'
 import { Dropdown, DropdownButton, DropdownItem, DropdownMenu } from '@/components/typescript/dropdown'
+import Link from 'next/link'
 
 export function LandingNavbar() {
   return (
@@ -10,9 +11,9 @@ export function LandingNavbar() {
         <div className="flex h-16 items-center">
           {/* Brand */}
           <div className="flex items-center">
-            <a href="/" className="text-lg font-semibold">
+            <Link href="/" className="text-lg font-semibold">
               24HourGPT
-            </a>
+            </Link>
           </div>
 
           {/* Desktop nav */}

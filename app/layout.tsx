@@ -1,5 +1,6 @@
 // app/layout.tsx
 import './globals.css';
+import Link from 'next/link';
 
 export const metadata = {
   title: '24HourGPT',
@@ -14,16 +15,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
             <div className="font-semibold">24HourGPT</div>
             <nav className="flex gap-4 text-sm">
-              <a href="/">Home</a>
-              <a href="/dashboard">Dashboard</a>
-              <a href="/chat">Chat</a>
-              <a href="/login">Login</a>
+              <Link href="/">Home</Link>
+              <Link href="/dashboard">Dashboard</Link>
+              <Link href="/chat">Chat</Link>
+              <Link href="/login">Login</Link>
             </nav>
           </div>
         </header>
         <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
         <footer className="mx-auto max-w-5xl px-4 py-8 text-xs text-neutral-500">
-          © {new Date().getFullYear()} Ruiz Tech Services
+          {new Date().getFullYear()} Ruiz Tech Services
         </footer>
       </body>
     </html>

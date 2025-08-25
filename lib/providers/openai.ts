@@ -5,12 +5,12 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function askOpenAI(prompt: string, model = 'gpt-4o-mini') {
   const started = Date.now();
-  const res = await client.responses.create({
+  const completion = await client.chat.completions.create({
     model,
-    input: prompt,
+    messages: [{ role: 'user', content: prompt }],
     temperature: 0.4,
   });
-  const text = (res as any).output_text ?? '';
+  const text = completion.choices[0].message.content ?? '';
   const latency_ms = Date.now() - started;
   return { provider: 'openai' as const, model, text, latency_ms };
 }
