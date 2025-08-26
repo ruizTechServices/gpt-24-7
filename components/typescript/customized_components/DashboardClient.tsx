@@ -27,7 +27,7 @@ export default function DashboardClient({ user, session }: DashboardClientProps)
         ) : (
           <div className="text-red-600">No active pass.</div>
         )}
-        <BuyButton currentUrl="/dashboard" />
+        <BuyButton />
       </div>
       <div className="rounded border bg-white p-4">
         <div className="font-medium text-xl text-black">Account</div>
