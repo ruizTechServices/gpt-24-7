@@ -33,7 +33,7 @@ export async function checkRateLimit(userId: string, limit = 30, windowSec = 60)
     const count = await redis.incr(key);
     if (count === 1) await redis.expire(key, windowSec);
     return { allowed: count <= limit, remaining: Math.max(0, limit - count) };
-  } catch (_err) {
+  } catch (_) {
     // Fail-open in dev if Redis is misconfigured; logs are emitted by ioredis
     return { allowed: true, remaining: limit };
   }
