@@ -32,7 +32,7 @@ export default function DashboardClient({ user, session }: { user: User; session
         <div className="font-medium text-xl text-black">Account</div>
         <div className="text-sm text-neutral-700">{user.email}</div>
         <button
-          className="text-sm underline disabled:opacity-50"
+          className="text-sm underline disabled:opacity-50 text-black"
           disabled={loading}
           onClick={async () => {
             setLoading(true);
