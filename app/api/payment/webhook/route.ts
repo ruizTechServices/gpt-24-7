@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   // Lazily instantiate clients to avoid build-time env evaluation
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SERVICE_ROLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
   const stripeSecret = process.env.STRIPE_SECRET_KEY;
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -96,6 +96,7 @@ export async function POST(req: Request) {
       amount_cents: amountCents,
       currency,
       status: 'succeeded',
+      raw: { type: event.type, object: session },
     });
     if (payErr1 && payErr1.code !== '23505')
       console.error('[webhook] payments.insert (checkout.session.completed) error', payErr1);
@@ -124,6 +125,7 @@ export async function POST(req: Request) {
       amount_cents: amountCents,
       currency,
       status: 'succeeded',
+      raw: { type: event.type, object: pi },
     });
     if (payErr2 && payErr2.code !== '23505')
       console.error('[webhook] payments.insert (payment_intent.succeeded) error', payErr2);
@@ -152,6 +154,7 @@ export async function POST(req: Request) {
       amount_cents: amountCents,
       currency,
       status: 'succeeded',
+      raw: { type: event.type, object: invoice },
     });
     if (payErr3 && payErr3.code !== '23505')
       console.error('[webhook] payments.insert (invoice.paid) error', payErr3);
