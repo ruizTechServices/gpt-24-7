@@ -2,17 +2,11 @@
 import Redis from 'ioredis';
 
 const RAW_URL = process.env.REDIS_URL;
-const REDIS_API_KEY = process.env.REDIS_API_KEY;
 
 let redis: Redis;
 if (RAW_URL?.startsWith('redis://') || RAW_URL?.startsWith('rediss://')) {
   // Full DSN provided (recommended): redis://:password@host:port
   redis = new Redis(RAW_URL);
-} else if (RAW_URL && REDIS_API_KEY) {
-  // Host:port plus password provided separately
-  const [host, portStr] = RAW_URL.split(':');
-  const port = Number(portStr || '6379');
-  redis = new Redis({ host, port, password: REDIS_API_KEY });
 } else {
   // Fallback to local dev if nothing set
   redis = new Redis();

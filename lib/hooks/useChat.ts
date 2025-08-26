@@ -1,7 +1,7 @@
 // lib/hooks/useChat.ts
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 // TODO 1: Import the Supabase client.
 // import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 

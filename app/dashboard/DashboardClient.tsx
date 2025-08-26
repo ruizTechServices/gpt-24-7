@@ -3,8 +3,14 @@
 import { useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import BuyButton from '@/components/typescript/customized_components/BuyButton';
+import { User } from '@supabase/supabase-js';
 
-export default function DashboardClient({ user, session }: { user: any; session: any }) {
+interface SessionData {
+  active: boolean;
+  ends_at: string | null;
+}
+
+export default function DashboardClient({ user, session }: { user: User; session: SessionData }) {
   const [loading, setLoading] = useState(false);
 
   return (
@@ -13,7 +19,7 @@ export default function DashboardClient({ user, session }: { user: any; session:
         <div className="font-medium text-xl text-black">Session</div>
         {session.active ? (
           <div className="text-sm text-green-600">
-            Active until {new Date(session.ends_at).toLocaleString()}
+            Active until {new Date(session.ends_at!).toLocaleString()}
           </div>
         ) : (
           <div className="text-sm text-red-600">No active pass.</div>
