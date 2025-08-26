@@ -1,16 +1,21 @@
 // app/api/payment/webhook/route.ts
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Create a Supabase client with the service role key for privileged access
+const db = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SERVICE_ROLE_KEY!
+);
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 async function grantOrExtend(userId: string) {
-  const db = await createSupabaseServerClient();
   const now = new Date();
   const { data: existing } = await db
     .from('sessions')
@@ -74,17 +79,15 @@ export async function POST(req: Request) {
     const checkoutSessionId = session.id;
 
     // Persist payment (avoid onConflict unless DB has unique constraints)
-    const { error: payErr1 } = await (await createSupabaseServerClient())
-      .from('payments')
-      .insert({
-        user_id: userId,
-        provider: 'stripe',
-        checkout_session_id: checkoutSessionId,
-        payment_intent_id: paymentIntentId || null,
-        amount_cents: amountCents,
-        currency,
-        status: 'succeeded',
-      });
+    const { error: payErr1 } = await db.from('payments').insert({
+      user_id: userId,
+      provider: 'stripe',
+      checkout_session_id: checkoutSessionId,
+      payment_intent_id: paymentIntentId || null,
+      amount_cents: amountCents,
+      currency,
+      status: 'succeeded',
+    });
     if (payErr1 && payErr1.code !== '23505')
       console.error('[webhook] payments.insert (checkout.session.completed) error', payErr1);
 
@@ -106,17 +109,15 @@ export async function POST(req: Request) {
       checkoutSessionId = list.data[0]?.id ?? null;
     } catch {}
 
-    const { error: payErr2 } = await (await createSupabaseServerClient())
-      .from('payments')
-      .insert({
-        user_id: userId,
-        provider: 'stripe',
-        checkout_session_id: checkoutSessionId,
-        payment_intent_id: paymentIntentId,
-        amount_cents: amountCents,
-        currency,
-        status: 'succeeded',
-      });
+    const { error: payErr2 } = await db.from('payments').insert({
+      user_id: userId,
+      provider: 'stripe',
+      checkout_session_id: checkoutSessionId,
+      payment_intent_id: paymentIntentId,
+      amount_cents: amountCents,
+      currency,
+      status: 'succeeded',
+    });
     if (payErr2 && payErr2.code !== '23505')
       console.error('[webhook] payments.insert (payment_intent.succeeded) error', payErr2);
 
@@ -136,17 +137,15 @@ export async function POST(req: Request) {
     const amountCents = invoice.amount_paid ?? invoice.amount_due ?? 0;
     const currency = (invoice.currency ?? 'usd').toUpperCase();
 
-    const { error: payErr3 } = await (await createSupabaseServerClient())
-      .from('payments')
-      .insert({
-        user_id: userId,
-        provider: 'stripe',
-        checkout_session_id: null,
-        payment_intent_id: paymentIntentId,
-        amount_cents: amountCents,
-        currency,
-        status: 'succeeded',
-      });
+    const { error: payErr3 } = await db.from('payments').insert({
+      user_id: userId,
+      provider: 'stripe',
+      checkout_session_id: null,
+      payment_intent_id: paymentIntentId,
+      amount_cents: amountCents,
+      currency,
+      status: 'succeeded',
+    });
     if (payErr3 && payErr3.code !== '23505')
       console.error('[webhook] payments.insert (invoice.paid) error', payErr3);
 
