@@ -7,7 +7,6 @@ import { chooseModel } from '@/lib/router';
 import { askOpenAI } from '@/lib/providers/openai';
 import { askAnthropic } from '@/lib/providers/anthropic';
 import { estimateTokens } from '@/lib/tokens';
-import { supabaseService } from '@/lib/db';
 
 export const runtime = 'nodejs';
 
@@ -68,8 +67,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Token allowance reached' }, { status: 402 });
       }
 
-      const sr = supabaseService();
-      await sr.from('usage_log').insert({
+      await supabase.from('usage_log').insert({
         user_id: data.user.id,
         session_id: session.id,
         provider: ask.provider,
@@ -80,7 +78,7 @@ export async function POST(req: Request) {
         latency_ms: ask.latency_ms,
       });
 
-      await sr
+      await supabase
         .from('sessions')
         .update({ tokens_used: (session.tokens_used ?? 0) + est_tokens })
         .eq('id', session.id);
