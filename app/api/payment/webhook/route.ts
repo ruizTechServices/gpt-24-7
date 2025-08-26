@@ -6,50 +6,60 @@ import { createClient } from '@supabase/supabase-js';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Create a Supabase client with the service role key for privileged access
-const db = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SERVICE_ROLE_KEY!
-);
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-
-async function grantOrExtend(userId: string) {
-  const now = new Date();
-  const { data: existing } = await db
-    .from('sessions')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('status', 'active')
-    .order('ends_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const baseStart = now;
-  const baseEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-  if (existing && new Date(existing.ends_at) > now) {
-    const newEnd = new Date(new Date(existing.ends_at).getTime() + 24 * 60 * 60 * 1000);
-    const { error: updErr } = await db
-      .from('sessions')
-      .update({ ends_at: newEnd.toISOString() })
-      .eq('id', existing.id);
-    if (updErr) console.error('[webhook] sessions.update error', updErr);
-  } else {
-    const { error: insErr } = await db.from('sessions').insert({
-      user_id: userId,
-      status: 'active',
-      starts_at: baseStart.toISOString(),
-      ends_at: baseEnd.toISOString(),
-      tokens_used: 0,
-      token_limit: 200000,
-    });
-    if (insErr) console.error('[webhook] sessions.insert error', insErr);
-  }
-}
-
 export async function POST(req: Request) {
+  // Lazily instantiate clients to avoid build-time env evaluation
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SERVICE_ROLE_KEY;
+  const stripeSecret = process.env.STRIPE_SECRET_KEY;
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!supabaseUrl || !serviceRoleKey || !stripeSecret || !endpointSecret) {
+    console.error('[webhook] Missing envs', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasServiceRoleKey: !!serviceRoleKey,
+      hasStripeSecret: !!stripeSecret,
+      hasEndpointSecret: !!endpointSecret,
+    });
+    return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+  }
+
+  const db = createClient(supabaseUrl, serviceRoleKey);
+  const stripe = new Stripe(stripeSecret);
+
+  async function grantOrExtend(userId: string) {
+    const now = new Date();
+    const { data: existing } = await db
+      .from('sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('ends_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const baseStart = now;
+    const baseEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    if (existing && new Date(existing.ends_at) > now) {
+      const newEnd = new Date(new Date(existing.ends_at).getTime() + 24 * 60 * 60 * 1000);
+      const { error: updErr } = await db
+        .from('sessions')
+        .update({ ends_at: newEnd.toISOString() })
+        .eq('id', existing.id);
+      if (updErr) console.error('[webhook] sessions.update error', updErr);
+    } else {
+      const { error: insErr } = await db.from('sessions').insert({
+        user_id: userId,
+        status: 'active',
+        starts_at: baseStart.toISOString(),
+        ends_at: baseEnd.toISOString(),
+        tokens_used: 0,
+        token_limit: 200000,
+      });
+      if (insErr) console.error('[webhook] sessions.insert error', insErr);
+    }
+  }
+
   const rawBody = await req.text();
   const sig = req.headers.get('stripe-signature') ?? '';
 
@@ -78,7 +88,6 @@ export async function POST(req: Request) {
         : session.payment_intent?.id;
     const checkoutSessionId = session.id;
 
-    // Persist payment (avoid onConflict unless DB has unique constraints)
     const { error: payErr1 } = await db.from('payments').insert({
       user_id: userId,
       provider: 'stripe',
@@ -91,7 +100,6 @@ export async function POST(req: Request) {
     if (payErr1 && payErr1.code !== '23505')
       console.error('[webhook] payments.insert (checkout.session.completed) error', payErr1);
 
-    // Grant or extend 24h access
     if (userId) {
       await grantOrExtend(userId);
     }
@@ -102,7 +110,6 @@ export async function POST(req: Request) {
     const amountCents = typeof pi.amount_received === 'number' ? pi.amount_received : pi.amount ?? 0;
     const currency = (pi.currency ?? 'usd').toUpperCase();
 
-    // Try to backfill checkout_session_id if PI came from Checkout
     let checkoutSessionId: string | null = null;
     try {
       const list = await stripe.checkout.sessions.list({ payment_intent: paymentIntentId, limit: 1 });
