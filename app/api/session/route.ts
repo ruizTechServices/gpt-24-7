@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return NextResponse.json({ active: false });
+  if (!auth.user) return NextResponse.json({ active: false, endsAt: null, tokensUsed: 0, tokenLimit: 0 });
 
   const { data } = await supabase
     .from('sessions')

@@ -4,7 +4,14 @@ import { getBaseUrl } from '@/lib/http';
 import { cookies } from 'next/headers';
 import DashboardClient from '@/app/dashboard/DashboardClient';
 
-async function fetchSession() {
+type SessionData = {
+  active: boolean;
+  endsAt: string | null;
+  tokensUsed: number;
+  tokenLimit: number;
+};
+
+async function fetchSession(): Promise<SessionData> {
   const base = await getBaseUrl();
   const cookieStore = await cookies();
   const cookieHeader = cookieStore
@@ -17,9 +24,9 @@ async function fetchSession() {
   });
   if (!res.ok) {
     console.error('Failed to fetch session:', res.status, res.statusText);
-    return { active: false, ends_at: null };
+    return { active: false, endsAt: null, tokensUsed: 0, tokenLimit: 0 };
   }
-  return res.json();
+  return res.json() as Promise<SessionData>;
 }
 
 export default async function Dashboard() {

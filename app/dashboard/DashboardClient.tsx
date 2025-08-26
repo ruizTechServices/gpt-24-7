@@ -7,7 +7,9 @@ import { User } from '@supabase/supabase-js';
 
 interface SessionData {
   active: boolean;
-  ends_at: string | null;
+  endsAt: string | null;
+  tokensUsed: number;
+  tokenLimit: number;
 }
 
 export default function DashboardClient({ user, session }: { user: User; session: SessionData }) {
@@ -19,7 +21,7 @@ export default function DashboardClient({ user, session }: { user: User; session
         <div className="font-medium text-xl text-black">Session</div>
         {session.active ? (
           <div className="text-sm text-green-600">
-            Active until {new Date(session.ends_at!).toLocaleString()}
+            Active until {new Date(session.endsAt!).toLocaleString()}
           </div>
         ) : (
           <div className="text-sm text-red-600">No active pass.</div>
