@@ -1,4 +1,4 @@
-import { LandingMain } from '@/components/typescript/landing_page/LandingMain'
+﻿import { LandingMain } from '@/components/typescript/landing_page/LandingMain'
 
 export default function Home() {
   return (
@@ -22,3 +22,5 @@ export default function Home() {
     </div>
   );
 }
+
+

@@ -2,7 +2,6 @@
 
 A minimal, production‑minded Next.js app that sells 24‑hour AI access for $1. Auth via Supabase, payment via Stripe Checkout, usage accounting with Redis rate‑limits and token attribution, and an auto‑router across OpenAI and Anthropic models.
 
-
 ## Overview
 
 - __Purpose__: Users sign in, purchase a 24‑hour pass, then chat with an AI. Access expires automatically after 24 hours (or extends on additional purchases).
@@ -11,7 +10,6 @@ A minimal, production‑minded Next.js app that sells 24‑hour AI access for $1
 - __Payments__: Stripe Checkout + Webhooks to grant/extend access and record payments.
 - __Models__: Auto‑routes between OpenAI and Anthropic; manual override available in the UI.
 - __Rate limit__: 30 req/min per user via Redis (`lib/ratelimit.ts`).
-
 
 ## Tech Stack
 
@@ -24,10 +22,10 @@ A minimal, production‑minded Next.js app that sells 24‑hour AI access for $1
 - __ioredis__ for rate limiting
 - __zod__ for request validation
 
-
 ## App Surface
 
 Pages (App Router):
+
 - `app/page.tsx` — Landing page
 - `app/login/page.tsx` — Supabase Auth UI (Google)
 - `app/dashboard/page.tsx` — Shows session status; purchase button
@@ -36,6 +34,7 @@ Pages (App Router):
 - `app/auth/callback/route.ts` — Supabase OAuth code exchange
 
 Key API Routes:
+
 - `POST /api/chat` → `app/api/chat/route.ts`
   - Auth required; validates payload (zod)
   - Enforces active session, token limit, and Redis rate limit
@@ -49,7 +48,6 @@ Key API Routes:
 - `GET /api/admin/usage` → `app/api/admin/usage/route.ts`
   - Admin‑gated; returns total revenue and last 100 usage entries
 
-
 ## Notable Implementation Details
 
 - __Auth enforcement__: `requireUser()` in `lib/auth.ts` redirects anonymous users to `/login`.
@@ -58,7 +56,6 @@ Key API Routes:
 - __Model routing__: `lib/router.ts` uses simple heuristics to send longer/analytical prompts to Anthropic Claude Sonnet; defaults to OpenAI `gpt-4o-mini`.
 - __Rate limiting__: `lib/ratelimit.ts` with Redis. Fails open in dev if misconfigured.
 - __Middleware__: `middleware.ts` delegates to `lib/supabase/middleware.ts` to keep Supabase auth cookies in sync on every request.
-
 
 ## Environment Variables
 
@@ -95,9 +92,9 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
 Notes:
+
 - `SUPABASE_SERVICE_ROLE_KEY` is used server‑side in `lib/db.ts` to bypass RLS for writes like payments and usage logging. Keep it secret.
 - `SITE_URL` is used in Stripe success/cancel URLs and server‑side fetches.
-
 
 ## Expected Database Tables (Supabase)
 
@@ -112,31 +109,33 @@ The app expects these tables to exist (column names derived from queries/inserts
 
 Configure RLS to your needs. The code uses the service role for writes in server routes and webhooks.
 
-
 ## Local Development
 
 1) Install deps
+
 ```bash
 npm install
 ```
 
-2) Run dev server
+1) Run dev server
+
 ```bash
 npm run dev
 # opens http://localhost:3000
 ```
 
-3) Configure Supabase Auth (Google)
+1) Configure Supabase Auth (Google)
+
 - In Supabase Dashboard, enable Google provider and set Redirect URL to: `http://localhost:3000/auth/callback`
 - Ensure your site’s production domain is also added in production.
 
-4) Stripe Webhook (local)
+1) Stripe Webhook (local)
+
 ```bash
 # Requires Stripe CLI
 stripe listen --forward-to localhost:3000/api/payment/webhook
 # Copy the printed signing secret into STRIPE_WEBHOOK_SECRET
 ```
-
 
 ## User Flow
 
@@ -145,16 +144,14 @@ stripe listen --forward-to localhost:3000/api/payment/webhook
 3) On successful payment, webhook grants or extends a 24‑hour `sessions` record.
 4) User chats at `/chat`. Each request is validated, rate‑limited, and metered; usage is recorded to `usage_log` and deducted against the session’s `token_limit`.
 
-
 ## Admin
 
 - `/admin` is gated to emails ending with `@ruiztechservices.com`.
 - Displays total succeeded revenue (sum of `payments.amount_cents`) and last 100 usage rows.
 
-
 ## Project Structure (partial)
 
-```
+```bash
 app/
   page.tsx                 # Landing
   login/page.tsx           # Supabase Auth UI (Google)
@@ -186,14 +183,12 @@ lib/
   db.ts
 ```
 
-
 ## Security & Operational Notes
 
 - Keep `SUPABASE_SERVICE_ROLE_KEY` and `STRIPE_SECRET_KEY` out of the client; only load them in server contexts.
 - Webhook route `POST /api/payment/webhook` expects raw body and a valid Stripe signature.
 - Redis misconfiguration in dev fails open to avoid blocking; review before production.
 - Admin gate is a simple email domain check; replace with roles/claims for production.
-
 
 ## License
 
