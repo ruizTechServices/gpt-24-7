@@ -1,6 +1,7 @@
 // app/layout.tsx
 import './globals.css';
 import Link from 'next/link';
+import { Analytics } from "@vercel/analytics/next"
 
 export const metadata = {
   title: '24HourGPT',
@@ -22,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </nav>
           </div>
         </header>
-        <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+        <main className="mx-auto max-w-5xl px-4 py-6">{children}<Analytics/></main>
         <footer className="mx-auto max-w-5xl px-4 py-8 text-xs text-neutral-500">
           {new Date().getFullYear()} Ruiz Tech Services
         </footer>
