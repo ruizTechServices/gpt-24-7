@@ -1,6 +1,7 @@
 // app/api/session/route.ts
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import type { Tables } from '@/lib/supabase/database.types';
 
 export const runtime = 'edge';
 
@@ -13,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: session, error } = await supabase
+    const { data: sessionData, error } = await supabase
       .from('sessions')
       .select('*')
       .eq('user_id', userData.user.id)
@@ -21,6 +22,7 @@ export async function GET() {
       .order('ends_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    const session = sessionData as Tables<'sessions'> | null;
 
     if (error) {
       console.error('Error fetching session:', error);

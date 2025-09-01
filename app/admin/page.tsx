@@ -3,9 +3,12 @@ import { requireUser } from '@/lib/auth';
 
 export default async function AdminPage() {
   const user = await requireUser();
-  if (!user.email?.endsWith('@ruiztechservices.com')) return <div>Forbidden</div>;
+  const role = (user.app_metadata as { role?: string })?.role;
+  const isAdmin = role === 'admin' || (user.email?.endsWith('@ruiztechservices.com') ?? false);
+  if (!isAdmin) return <div>Forbidden</div>;
 
-  const res = await fetch(`${process.env.SITE_URL}/api/admin/usage`, { cache: 'no-store' });
+  const base = process.env.SITE_URL?.replace(/\/$/, '') ?? '';
+  const res = await fetch(base ? `${base}/api/admin/usage` : '/api/admin/usage', { cache: 'no-store' });
   const json = await res.json();
 
   return (

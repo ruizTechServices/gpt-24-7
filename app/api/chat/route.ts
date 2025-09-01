@@ -7,6 +7,8 @@ import { chooseModel } from '@/lib/router';
 import { askOpenAI } from '@/lib/providers/openai';
 import { askAnthropic } from '@/lib/providers/anthropic';
 import { estimateTokens } from '@/lib/tokens';
+import type { Tables, TablesInsert, Database } from '@/lib/supabase/database.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 
@@ -22,11 +24,11 @@ const Body = z.object({
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createSupabaseServerClient();
+    const supabase = (await createSupabaseServerClient()) as unknown as SupabaseClient<Database>;
     const { data } = await supabase.auth.getUser();
     if (!data.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { data: session } = await supabase
+    const { data: sessionData } = await supabase
       .from('sessions')
       .select('*')
       .eq('user_id', data.user.id)
@@ -34,6 +36,7 @@ export async function POST(req: Request) {
       .order('ends_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    const session = sessionData as Tables<'sessions'> | null;
 
     if (!session || new Date(session.ends_at) < new Date()) {
       return NextResponse.json({ error: 'No active session' }, { status: 402 });
@@ -67,7 +70,39 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Token allowance reached' }, { status: 402 });
       }
 
-      await supabase.from('usage_log').insert({
+      // Atomically consume tokens to prevent race conditions
+      // Note: consume_tokens RPC isn't in Database.Functions; use a typed wrapper without `any`.
+      type ConsumeTokensRow = { ok: boolean; new_tokens_used: number };
+      type RpcCall = (
+        fn: 'consume_tokens',
+        params: { p_session_id: string; p_inc: number }
+      ) => Promise<{ data: ConsumeTokensRow[] | null; error: { message: string } | null }>;
+      const rpcFn = supabase.rpc as unknown as RpcCall;
+      const { data: rpc, error: rpcErr } = await rpcFn('consume_tokens', {
+        p_session_id: session.id,
+        p_inc: est_tokens,
+      });
+      const rpcOk = rpc?.[0]?.ok ?? false;
+      const rpcNew = rpc?.[0]?.new_tokens_used ?? null;
+      if (rpcErr || !rpcOk) {
+        console.warn('[CHAT][consume_tokens] reject', {
+          session_id: session.id,
+          est_tokens,
+          err: rpcErr?.message,
+          ok: rpcOk,
+          new_tokens_used: rpcNew,
+        });
+        return NextResponse.json({ error: 'Token allowance reached' }, { status: 402 });
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[CHAT][consume_tokens] ok', {
+          session_id: session.id,
+          est_tokens,
+          new_tokens_used: rpcNew,
+        });
+      }
+
+      const usageInsert: TablesInsert<'usage_log'> = {
         user_id: data.user.id,
         session_id: session.id,
         provider: ask.provider,
@@ -76,12 +111,8 @@ export async function POST(req: Request) {
         response_chars: ask.text.length,
         est_tokens,
         latency_ms: ask.latency_ms,
-      });
-
-      await supabase
-        .from('sessions')
-        .update({ tokens_used: (session.tokens_used ?? 0) + est_tokens })
-        .eq('id', session.id);
+      };
+      await supabase.from('usage_log').insert(usageInsert);
 
       return NextResponse.json({ reply: ask.text, provider: ask.provider, model: ask.model });
     } catch (error) {

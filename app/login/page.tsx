@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Session } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export default function LoginPage() {
   const supabase = createSupabaseBrowserClient();
@@ -51,7 +52,7 @@ export default function LoginPage() {
           <div>loading...</div>
         ) : (
           <Auth
-            supabaseClient={supabase}
+            supabaseClient={supabase as unknown as SupabaseClient}
             appearance={{ theme: ThemeSupa }}
             providers={['google']}
             redirectTo={origin ? `${origin}/auth/callback` : undefined}

@@ -9,8 +9,10 @@ export const runtime = 'nodejs';
 export async function GET() {
   const user = await requireUser();
 
-  // Super simple admin gate. Replace with a proper role check later.
-  if (!user.email?.endsWith('@ruiztechservices.com')) {
+  // Admin gate: prefer role, fallback to email domain while roles are being assigned
+  const role = (user.app_metadata as { role?: string })?.role;
+  const isAdmin = role === 'admin' || (user.email?.endsWith('@ruiztechservices.com') ?? false);
+  if (!isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

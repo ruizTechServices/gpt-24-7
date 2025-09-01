@@ -17,33 +17,39 @@ export type Database = {
       payments: {
         Row: {
           amount_cents: number
+          checkout_session_id: string | null
           created_at: string
           currency: string
           id: string
+          payment_intent_id: string | null
+          provider: string
           raw: Json | null
-          square_payment_id: string | null
           status: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           amount_cents: number
+          checkout_session_id?: string | null
           created_at?: string
           currency?: string
           id?: string
+          payment_intent_id?: string | null
+          provider?: string
           raw?: Json | null
-          square_payment_id?: string | null
           status: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           amount_cents?: number
+          checkout_session_id?: string | null
           created_at?: string
           currency?: string
           id?: string
+          payment_intent_id?: string | null
+          provider?: string
           raw?: Json | null
-          square_payment_id?: string | null
           status?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
