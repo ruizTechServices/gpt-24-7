@@ -1,0 +1,193 @@
+# 24HourGPT Remediation TODO Checklist
+
+Owner: Ada (for Gio)
+Last updated: 2025-09-01
+
+This checklist expands the recommended next steps into actionable tasks. Check items off as you complete them.
+
+---
+
+## Regenerate Supabase Types
+
+- [ ] Identify dev Supabase project ID
+  - [ ] List projects (Supabase MCP) and pick the dev project
+  - [ ] Note `project_id` for subsequent steps
+- [ ] Generate new TypeScript types
+  - [ ] Use Supabase MCP: generate TypeScript types for the project
+  - [ ] Save/overwrite `lib/supabase/database.types.ts`
+- [ ] Validate types in codebase
+  - [ ] Run type-check/build and fix any type errors
+  - [ ] Ensure `payments` fields (e.g., `checkout_session_id`, `payment_intent_id`, `provider`, `raw`) match schema
+- [ ] Commit changes
+
+---
+
+## Harden/Simplify RLS (payments, sessions, usage_log)
+
+- [ ] Inventory current policies (dev & prod)
+  - [ ] Capture existing RLS policies for `payments`, `sessions`, `usage_log`
+  - [ ] Note duplicate/permissive policies flagged by advisors (especially in prod)
+- [ ] Define minimal policy model
+  - [ ] `payments`: authenticated can SELECT own; writes via service role only
+  - [ ] `sessions`: authenticated can SELECT own; writes via service role only
+  - [ ] `usage_log`: authenticated can INSERT/SELECT own; admin reads via service role
+- [ ] Apply migrations (dev → prod)
+  - [ ] Drop redundant/permissive policies
+  - [ ] Create minimal policies with clear names (e.g., `payments_select_own`)
+  - [ ] Enable RLS on tables (if not already)
+- [ ] Validate with tests
+  - [ ] From authenticated client, verify own-row SELECTs work
+  - [ ] Verify cross-user access is denied
+  - [ ] Verify service-role actions (webhook/admin) still function
+- [ ] Advisor pass
+  - [ ] Re-run advisors to ensure warnings are resolved
+
+Reference SQL (example snippets):
+```sql
+-- payments
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS payments_select_own ON public.payments;
+CREATE POLICY payments_select_own ON public.payments
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+
+-- sessions
+ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS sessions_select_own ON public.sessions;
+CREATE POLICY sessions_select_own ON public.sessions
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+
+-- usage_log
+ALTER TABLE public.usage_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS usage_log_insert_own ON public.usage_log;
+CREATE POLICY usage_log_insert_own ON public.usage_log
+  FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS usage_log_select_own ON public.usage_log;
+CREATE POLICY usage_log_select_own ON public.usage_log
+  FOR SELECT TO authenticated USING (user_id = auth.uid());
+```
+
+---
+
+## Add `consume_tokens()` RPC and Update `/api/chat`
+
+- [ ] Draft SQL function (SECURITY DEFINER)
+  - [ ] Ensure it checks session ownership: `session.user_id = auth.uid()`
+  - [ ] Only updates if `tokens_used + p_inc <= token_limit`
+  - [ ] Returns success flag and new `tokens_used`
+- [ ] Apply migration (dev, then prod)
+- [ ] Update `app/api/chat/route.ts`
+  - [ ] Replace direct `.update()` with `rpc('consume_tokens', { p_session_id, p_inc })`
+  - [ ] Handle failure case (insufficient tokens)
+- [ ] Tests & logs
+  - [ ] Add logging around RPC result
+  - [ ] Add basic test to simulate concurrent calls (optional)
+
+Reference SQL (sketch):
+```sql
+CREATE OR REPLACE FUNCTION consume_tokens(p_session_id uuid, p_inc int)
+RETURNS TABLE (ok boolean, new_tokens_used int) AS $$
+DECLARE v_ok boolean; v_tokens int;
+BEGIN
+  UPDATE public.sessions s
+     SET tokens_used = tokens_used + p_inc, updated_at = now()
+   WHERE s.id = p_session_id
+     AND s.user_id = auth.uid()
+     AND s.tokens_used + p_inc <= s.token_limit
+  RETURNING true, s.tokens_used INTO v_ok, v_tokens;
+
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT false, NULL::int;
+  ELSE
+    RETURN QUERY SELECT v_ok, v_tokens;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+---
+
+## Lock ServerActions Origin to `SITE_URL`
+
+- [ ] Add `SITE_URL` to environment (.env, Vercel, etc.)
+- [ ] Edit `next.config.ts`
+  - [ ] Set `experimental.serverActions.allowedOrigins = [process.env.SITE_URL]`
+  - [ ] Provide sensible fallback for local dev if needed
+- [ ] Validate
+  - [ ] Build/start app and ensure serverActions still function from the site URL
+
+---
+
+## Switch Admin Gating to Role-Based
+
+- [ ] Define admin role model
+  - [ ] Use `user.app_metadata.role = 'admin'`
+- [ ] Assign roles
+  - [ ] Set `app_metadata.role` for admin users in Supabase (Auth admin panel or SQL)
+- [ ] Update checks in code
+  - [ ] `app/admin/page.tsx`: gate by `user.app_metadata.role === 'admin'`
+  - [ ] `app/api/admin/usage/route.ts`: same role check instead of email domain
+- [ ] Validate
+  - [ ] Non-admin users are denied (403)
+  - [ ] Admins can access and fetch data via service role client
+
+---
+
+## Drop Duplicate Index; Later Remove Unused
+
+- [ ] Confirm duplicate unique index on `public.payments.checkout_session_id`
+  - [ ] Keep `payments_checkout_session_id_key`
+  - [ ] Drop `ux_payments_checkout_session_id`
+- [ ] Validate uniqueness still enforced
+- [ ] Monitor unused indexes (30-day window)
+  - [ ] Use advisors/`pg_stat_user_indexes` to confirm unused
+  - [ ] Drop truly unused indexes:
+    - `public.sessions`: `idx_sessions_user_ends_at`
+    - `public.payments`: `idx_payments_user_id`
+    - `public.usage_log`: `idx_usage_log_session_id`, `idx_usage_log_user_id`
+
+Reference SQL:
+```sql
+DROP INDEX IF EXISTS public.ux_payments_checkout_session_id;
+```
+
+---
+
+## Finish Chat Encryption E2E
+
+- [ ] Preconditions
+  - [ ] Ensure `pgsodium` extension is installed
+  - [ ] Create/confirm Supabase Vault key for chat encryption
+- [ ] Schema & RLS
+  - [ ] Confirm `chat_messages` (or target table) has columns for ciphertext/nonce
+  - [ ] RLS: owner-only read/write; admin via service role
+- [ ] RPCs
+  - [ ] `add_encrypted_chat_message(user_id, session_id, role, content)`
+    - [ ] Encrypt with Vault key (server-side), store ciphertext + metadata
+    - [ ] Enforce `auth.uid() = user_id`
+  - [ ] `get_decrypted_chat_history(user_id, session_id, limit)`
+    - [ ] Decrypt server-side, return plaintext messages
+    - [ ] Enforce ownership
+- [ ] Client wiring
+  - [ ] Update `lib/hooks/useChat.ts` to call RPCs on send/load
+  - [ ] Handle serialization/deserialization between UI and RPC
+- [ ] Validation
+  - [ ] Verify messages are stored encrypted and decrypted on retrieval
+
+---
+
+## Tighten Supabase Auth Settings (OTP / Leaked Password)
+
+- [ ] Update Auth configuration in Supabase project
+  - [ ] Reduce OTP expiry (e.g., 10–15 minutes)
+  - [ ] Enable leaked password protection
+- [ ] Regression check
+  - [ ] Confirm sign-in/sign-up flows still operate (including OAuth)
+- [ ] Advisor pass
+  - [ ] Re-run advisors; ensure warnings cleared
+
+---
+
+## Notes
+- Perform changes in dev first; then promote to prod.
+- For DB changes, prefer applying migrations (idempotent where possible).
+- After each change group, add minimal tests and observability/logging.
